@@ -1,4 +1,5 @@
-# ML
+# Cybersecurity Risk Assessment in Banking Systems
+This project involved a comprehensive cybersecurity risk assessment of banking systems, with the aim of identifying potential threats and proposing effective countermeasures. As a Cybersecurity Analyst, I utilized Bayesian Attack Graphs (BAGs) and the A* search algorithm to model and visualize the cybersecurity risks in the banking system. The risk assessment revealed several vulnerabilities in web APIs, database servers, and middleware. Based on these findings, I proposed a range of countermeasures, including standard authentication techniques for web APIs, encryption of sensitive data in configuration files, and adding digital signatures to critical database securables. This proactive approach to cybersecurity can help prevent potential attacks, protect sensitive data, and ultimately save significant costs associated with a security breach.
 
 Important variables to run the code:
 bstart=200 #starting budget to start simulation
