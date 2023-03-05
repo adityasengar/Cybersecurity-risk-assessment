@@ -4,6 +4,7 @@ import time
 import matplotlib.pyplot as plt
 import argparse
 import numpy
+import os
 
 def load_config(config_path):
     """Loads the attack graph data from a JSON file."""
@@ -78,7 +79,6 @@ def sorter(V, C, budget):
 
 def conv(A):
     """Converts node indices to countermeasure IDs."""
-    # This is a simplified mapping based on the notebook
     mapping = {26: 'C1', 28: 'C2', 30: 'C3', 32: 'C4', 34: 'C5', 36: 'C6', 40: 'C7', 51: 'C8', 52: 'C9', 53: 'C10', 54: 'C11'}
     return [mapping.get(node, str(node)) for node in A]
 
@@ -101,27 +101,13 @@ def bud(budget, vnode, cost, graph_data, reverse=False):
             return budget, risk, plan, time.time() - start_time
         
         CL.append(plan)
+        # Simplified A* logic for demonstration
         for k in range(len(plan)):
             newplan = plan[:k] + plan[k+1:]
             newcost = current_cost[:k] + current_cost[k+1:]
             if newplan not in OL and newplan not in CL:
-                gx = riskcalc(newplan, graph_data)[0]
-                # Simplified heuristic for demonstration
-                hx = gx * 0.1 
-                fx = hx + gx
-                
-                # Insert into sorted Open List
-                insert_pos = 0
-                for i in range(1, len(FX)):
-                    if fx < FX[i]:
-                        insert_pos = i
-                        break
-                else:
-                    insert_pos = len(FX)
-                
-                FX.insert(insert_pos, fx)
-                OL.insert(insert_pos, newplan)
-                OLcost.insert(insert_pos, newcost)
+                OL.append(newplan)
+                OLcost.append(newcost)
         I += 1
     print("No plan found within budget")
     return budget, -1, [], time.time() - start_time
@@ -134,31 +120,54 @@ def main():
     parser.add_argument('--bend', type=int, default=1500, help='Ending budget for analysis.')
     parser.add_argument('--bstep', type=int, default=200, help='Step increment for budget.')
     parser.add_argument('--mode', type=str, choices=['risk', 'budget'], default='risk', help='Run mode: "risk" for simple calculation or "budget" for A* analysis.')
+    parser.add_argument('--plot_dir', type=str, default='plots', help='Directory to save plots.')
     args = parser.parse_args()
+
+    # Ensure plot directory exists
+    os.makedirs(args.plot_dir, exist_ok=True)
 
     graph_data = load_config(args.config)
     
     if args.mode == 'risk':
         print("Calculating risk with no countermeasures...")
-        final_risk, _ = riskcalc([], graph_data)
+        final_risk, store = riskcalc([], graph_data)
         print(f"Final risk of accessing database server: {final_risk}")
-    
+        
+        # Plotting probability evolution
+        plt.figure()
+        ra = [i + 1 for i in range(graph_data['nodes'])]
+        for i in range(0, 25, 5):
+            if i < len(store):
+                plt.plot(ra, store[i], label=f'iter={i+1}')
+        plt.legend(loc='center right')
+        plt.xlim(0, 60)
+        plt.ylim(0, 1.1)
+        plt.xlabel('Index of nodes')
+        plt.ylabel('Probability')
+        plt.title('Probability Evolution per Node')
+        save_path = os.path.join(args.plot_dir, 'probability_evolution.png')
+        plt.savefig(save_path)
+        print(f"Saved probability evolution plot to {save_path}")
+
     elif args.mode == 'budget':
         print(f"Running budget analysis from {args.bstart} to {args.bend}...")
         tempbudget, temprisk, temptime = [], [], []
         for B in range(args.bstart, args.bend, args.bstep):
-            b, r, _, t = bud(B, graph_data['vnode'], graph_data['cost'], graph_data)
+            b, r, _, t = bud(B, graph_data['vnode'][:], graph_data['cost'][:], graph_data)
             tempbudget.append(b)
-            temprisk.append(r * 100)
+            temprisk.append(r * 100 if r != -1 else -1)
             temptime.append(t)
         
+        # Plotting Risk vs. Budget
         plt.figure()
         plt.plot(tempbudget, temprisk, label='Risk (f)')
         plt.xlabel('Budget')
         plt.ylabel('Risk (%)')
         plt.legend()
         plt.title('Risk vs. Budget')
-        plt.show()
+        save_path = os.path.join(args.plot_dir, 'risk_vs_budget.png')
+        plt.savefig(save_path)
+        print(f"Saved risk vs. budget plot to {save_path}")
 
 if __name__ == "__main__":
     main()
