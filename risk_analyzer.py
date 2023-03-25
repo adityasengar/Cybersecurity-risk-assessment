@@ -5,9 +5,23 @@ import matplotlib.pyplot as plt
 import argparse
 import numpy
 import os
+import logging
+
+# ===================================================================
+# Logging Setup
+# ===================================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("risk_analyzer.log"),
+        logging.StreamHandler()
+    ]
+)
 
 def load_config(config_path):
     """Loads the attack graph data from a JSON file."""
+    logging.info(f"Loading configuration from {config_path}...")
     with open(config_path, 'r') as f:
         config = json.load(f)
 
@@ -33,6 +47,7 @@ def load_config(config_path):
     for k, v in prob_cfg.items():
         prob_arr[int(k)] = v
         
+    logging.info("Configuration loaded successfully.")
     return {
         "nodes": nodes, "vnode": config['vnode'], "cost": config['cost'],
         "type": type_arr, "parent": parent_arr, "prob": prob_arr,
@@ -47,7 +62,9 @@ def riskcalc(P, graph_data, threshold=1e-9):
         probi[node_idx] = 0
 
     store = [probi[:]]
+    iteration = 0
     while True:
+        iteration += 1
         for i in range(nodes):
             if parent[i] == -1: continue
             if type_arr[i] == 'c':
@@ -60,7 +77,13 @@ def riskcalc(P, graph_data, threshold=1e-9):
         
         store.append(probi[:])
         t1, t2 = store[-1], store[-2]
-        if sum([(t1[i] - t2[i])**2 for i in range(len(probi))]) < threshold:
+        error = sum([(t1[i] - t2[i])**2 for i in range(len(probi))])
+        
+        if iteration % 10 == 0:
+            logging.debug(f"Iteration {iteration}, MSE: {error}")
+
+        if error < threshold:
+            logging.info(f"Convergence reached after {iteration} iterations.")
             return probi[16], store
 
 def sorter(V, C, budget):
@@ -89,19 +112,18 @@ def bud(budget, vnode, cost, graph_data, reverse=False):
         cost.reverse()
     
     start_time = time.time()
-    OL, CL, OLcost, FX = [vnode], [], [cost], [0]
+    OL, CL, OLcost = [vnode], [], [cost]
     I = 0
     while I < len(OL):
         plan, current_cost = OL[I], OLcost[I]
         if sum(current_cost) <= budget:
-            print(f"eureka. Plan found: {conv(plan)}")
+            logging.info(f"Plan found for budget {budget}: {conv(plan)}")
             risk = riskcalc(plan, graph_data)[0]
-            print(f"--- {time.time() - start_time:.2f} seconds ---")
-            print(f"Budget: {budget}, Risk: {risk}")
-            return budget, risk, plan, time.time() - start_time
+            elapsed_time = time.time() - start_time
+            logging.info(f"Found plan in {elapsed_time:.2f} seconds. Risk: {risk:.4f}")
+            return budget, risk, plan, elapsed_time
         
         CL.append(plan)
-        # Simplified A* logic for demonstration
         for k in range(len(plan)):
             newplan = plan[:k] + plan[k+1:]
             newcost = current_cost[:k] + current_cost[k+1:]
@@ -109,7 +131,7 @@ def bud(budget, vnode, cost, graph_data, reverse=False):
                 OL.append(newplan)
                 OLcost.append(newcost)
         I += 1
-    print("No plan found within budget")
+    logging.warning(f"No plan found for budget {budget}")
     return budget, -1, [], time.time() - start_time
 
 def main():
@@ -123,17 +145,14 @@ def main():
     parser.add_argument('--plot_dir', type=str, default='plots', help='Directory to save plots.')
     args = parser.parse_args()
 
-    # Ensure plot directory exists
     os.makedirs(args.plot_dir, exist_ok=True)
-
     graph_data = load_config(args.config)
     
     if args.mode == 'risk':
-        print("Calculating risk with no countermeasures...")
+        logging.info("Running single risk calculation with no countermeasures...")
         final_risk, store = riskcalc([], graph_data)
-        print(f"Final risk of accessing database server: {final_risk}")
+        logging.info(f"Final risk of accessing database server: {final_risk}")
         
-        # Plotting probability evolution
         plt.figure()
         ra = [i + 1 for i in range(graph_data['nodes'])]
         for i in range(0, 25, 5):
@@ -147,10 +166,10 @@ def main():
         plt.title('Probability Evolution per Node')
         save_path = os.path.join(args.plot_dir, 'probability_evolution.png')
         plt.savefig(save_path)
-        print(f"Saved probability evolution plot to {save_path}")
+        logging.info(f"Saved probability evolution plot to {save_path}")
 
     elif args.mode == 'budget':
-        print(f"Running budget analysis from {args.bstart} to {args.bend}...")
+        logging.info(f"Running budget analysis from {args.bstart} to {args.bend}...")
         tempbudget, temprisk, temptime = [], [], []
         for B in range(args.bstart, args.bend, args.bstep):
             b, r, _, t = bud(B, graph_data['vnode'][:], graph_data['cost'][:], graph_data)
@@ -158,7 +177,6 @@ def main():
             temprisk.append(r * 100 if r != -1 else -1)
             temptime.append(t)
         
-        # Plotting Risk vs. Budget
         plt.figure()
         plt.plot(tempbudget, temprisk, label='Risk (f)')
         plt.xlabel('Budget')
@@ -167,7 +185,7 @@ def main():
         plt.title('Risk vs. Budget')
         save_path = os.path.join(args.plot_dir, 'risk_vs_budget.png')
         plt.savefig(save_path)
-        print(f"Saved risk vs. budget plot to {save_path}")
+        logging.info(f"Saved risk vs. budget plot to {save_path}")
 
 if __name__ == "__main__":
     main()
