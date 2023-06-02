@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import argparse
 import numpy
 import os
+import sys
 import logging
 
 # ===================================================================
@@ -22,8 +23,15 @@ logging.basicConfig(
 def load_config(config_path):
     """Loads the attack graph data from a JSON file."""
     logging.info(f"Loading configuration from {config_path}...")
-    with open(config_path, 'r') as f:
-        config = json.load(f)
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        logging.error(f"Configuration file not found at: {config_path}")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        logging.error(f"Error decoding JSON from a malformed config file: {config_path}")
+        sys.exit(1)
 
     nodes = config['nodes']
     type_cfg = config['type_config']
