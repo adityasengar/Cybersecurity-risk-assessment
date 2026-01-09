@@ -69,3 +69,4 @@ This mode will generate a plot of the risk vs. budget in `plots/risk_vs_budget.p
 
 ---
 *The original Jupyter notebook and its instructions can be found in the project's commit history prior to May 2023.*
+# Updated on 2026-01-09
